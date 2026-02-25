@@ -1,61 +1,70 @@
-from fastapi import FastAPI, Depends, HTTPException
-from pydantic import BaseModel
-from typing import List
+import socket
+from threading import Thread
 
-app = FastAPI()
+class ConnectionMonitor:
+    def __init__(self):
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.bind(('0.0.0.0', 8080))
+        self.socket.listen(5) # Listen for up to 5 connections
+        self.blocked_ips = {}
+        self.max_attempts = 10
 
-# Modelos Pydantic para validar los datos de entrada
-class Product(BaseModel):
-    id: int
-    name: str
-    price: float
+    def handle_connection(self, client_socket, addr):
+        attempts = 0
+        
+        while True:
+            try:
+                data = client_socket.recv(1024)
+                
+                if not data: break
+                
+                # Process the received data here.
+                
+                attempts += 1
+                if attempts > self.max_attempts:
+                    print(f'Blocking IP {addr[0]} due to exceeding max attempts.')
+                    self.blocked_ips[addr[0]] = True
+                    client_socket.close()
+                    break
+            
+            except Exception as e:
+                print(f"Error handling connection from {addr}: {e}")
+                client_socket.close()
+                break
+        
+        print(f'Connection closed with {addr}')
 
+    def block_ip(self, ip):
+        self.blocked_ips[ip] = True
 
-class CartItem(BaseModel):
-    product_id: int
-    quantity: int
+    def unblock_ip(self, ip):
+        if ip in self.blocked_ips:
+            del self.blocked_ips[ip]
 
+    def run(self):
+        while True:
+            client_socket, addr = self.socket.accept()
+            print(f'Connection from {addr}')
+            
+            # Check if IP is blocked
+            if addr[0] in self.blocked_ips and self.blocked_ips[addr[0]]:
+                print(f'Ignoring connection from blocked IP: {addr[0]}')
+                client_socket.close()
+                continue
+            
+            thread = Thread(target=self.handle_connection, args=(client_socket, addr))
+            thread.start()
 
-class Order(BaseModel):
-    order_id: int
-    items: List[CartItem]
+    def stop(self):
+        self.socket.shutdown(socket.SHUT_RDWR)
+        self.socket.close()
 
-
-# Simulamos una base de datos en memoria para este ejemplo
-products = [
-    {"id": 1, "name": "Product A", "price": 20.99},
-    {"id": 2, "name": "Product B", "price": 34.50}
-]
-
-
-# Función para simular la autenticación JWT (en un entorno real, esto sería más complejo)
-def get_current_user():
-    return "current-user-token"
-
-
-@app.get("/products")
-async def read_products(current_user=Depends(get_current_user)):
-    return products
-
-
-@app.post("/products", response_model=Product)
-async def create_product(product: Product):
-    if product.id <= 0:
-        raise HTTPException(status_code=422, detail="Invalid ID for the product.")
-    products.append(product.dict())
-    return {"message": "Product created successfully."}
-
-
-@app.get("/cart")
-async def read_cart(current_user=Depends(get_current_user)):
-    # Aquí iría la lógica para leer el carrito del usuario
-    return []
-
-
-@app.post("/cart", response_model=CartItem)
-async def add_to_cart(cart_item: CartItem):
-    # Aquí iría la lógica para agregar un producto al carrito
-    return {"message": "Product added to cart successfully."}
-
-
-# Para este ejemplo, no implementamos las funciones de pedidos y autenticación JWT en el backend.
+if __name__ == "__main__":
+    monitor = ConnectionMonitor()
+    
+    try:
+        print("Starting connection monitor...")
+        monitor.run()
+    except KeyboardInterrupt:
+        print("\nStopping connection monitor...")
+        monitor.stop()

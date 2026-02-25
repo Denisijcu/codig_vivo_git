@@ -1,18 +1,25 @@
+import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from dotenv import load_dotenv # Nueva importación
 # Importamos lo que ya construimos
 from example7 import AgenteMaestro, pensar 
 
-# --- CONFIGURACIÓN DE CORREO DE VERTEX SERVICES ---
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-SENDER_EMAIL = "" 
-SENDER_PASSWORD = "" # La contraseña de aplicación de 16 letras de Google
+# --- CARGA DE CONFIGURACIÓN SEGURA ---
+load_dotenv() # Carga las variables del archivo .env
 
-# --- REFINAMIENTO DEL DESPACHO ---
+SMTP_SERVER = os.getenv("SMTP_SERVER")
+SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
+SENDER_EMAIL = os.getenv("SENDER_EMAIL")
+SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
+
 def enviar_reporte(destinatario, codigo_generado):
-    """Módulo de despacho final de Vertex Coders."""
+    """Módulo de despacho final de Vertex Coders con variables de entorno."""
+    # Validación de carga de variables
+    if not SENDER_EMAIL or not SENDER_PASSWORD:
+        return "❌ Error: Faltan credenciales en el archivo .env"
+
     print("✉️  Sombrero Comunicador redactando reporte final...")
     
     # El Agente Comunicador le da el toque humano
@@ -21,7 +28,6 @@ def enviar_reporte(destinatario, codigo_generado):
         "instruccion": "Redacta un mensaje profesional y entusiasta. Informa que el sistema 'Nemesis IA' ha finalizado la auditoría y el código está listo."
     }
     
-    # Limpiamos el código de posibles explicaciones para el reporte
     cuerpo_ai = pensar(sombrero_comunicador, "Tarea completada con éxito.")
     
     msg = MIMEMultipart()
@@ -29,12 +35,10 @@ def enviar_reporte(destinatario, codigo_generado):
     msg['To'] = destinatario
     msg['Subject'] = "🚀 Entrega de Desarrollo - Vertex Services"
     
-    # Estructura limpia del correo
     contenido = f"{cuerpo_ai}\n\n" + "="*30 + "\nCÓDIGO ENTREGADO:\n" + "="*30 + f"\n\n{codigo_generado}"
     msg.attach(MIMEText(contenido, 'plain'))
 
     try:
-        # Uso de contexto 'with' para asegurar que la conexión se cierre sola
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
             server.login(SENDER_EMAIL, SENDER_PASSWORD)
@@ -45,14 +49,10 @@ def enviar_reporte(destinatario, codigo_generado):
 
 # --- FLUJO COMPLETO ---
 if __name__ == "__main__":
-    # 1. Instanciamos la Colmena
     agente_maestro = AgenteMaestro(max_ciclos=1)
-    
-    # 2. Generamos el código (aquí es donde se crea la variable 'resultado')
     tarea = "Crear un script en Python para monitorear el uso de CPU y enviar una alerta si supera el 80%."
-    resultado = agente_maestro.ejecutar(tarea) # <--- AQUÍ SE DEFINE
+    resultado = agente_maestro.ejecutar(tarea)
     
-    # 3. Enviamos el resultado
     print("\n📧 Iniciando proceso de notificación...")
-    status = enviar_reporte("denisijcu266@gmail.com", resultado)
+    status = enviar_reporte("cliente_interesado@gmail.com", resultado)
     print(status)

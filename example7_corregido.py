@@ -2,28 +2,29 @@ import requests
 import json
 import os
 
-# --- CONFIGURACIÓN DE INFRAESTRUCTURA ---
-LM_STUDIO_URL = "http://host.docker.internal:1234/v1/chat/completions"
+# --- 1. CONFIGURACIÓN DE INFRAESTRUCTURA SOBERANA ---
+# Si usas Docker, mantén host.docker.internal; si es local, usa localhost
+LM_STUDIO_URL = "http://localhost:1234/v1/chat/completions"
 HEADERS = {"Content-Type": "application/json"}
 
 def pensar(sombrero, contexto):
-    """Interfaz de comunicación con el cerebro local Qwen 2.5."""
+    """Interfaz de comunicación con el cerebro local qwen2-7b-instruct."""
     payload = {
-        "model": "qwen2-7b-instruct",
+        "model": "qwen2-7b-instruct", # Sincronizado con tu laboratorio
         "messages": [
             {"role": "system", "content": sombrero["rol"]},
             {"role": "user", "content": f"Contexto actual:\n{contexto}\n\nInstrucción: {sombrero['instruccion']}"}
         ],
-        "temperature": 0.2, # Rigor técnico máximo
+        "temperature": 0.2, # Rigor técnico máximo para evitar alucinaciones
     }
     
     try:
-        response = requests.post(LM_STUDIO_URL, headers=HEADERS, json=payload, timeout=90)
+        response = requests.post(LM_STUDIO_URL, headers=HEADERS, json=payload, timeout=120)
         return response.json()['choices'][0]['message']['content']
     except Exception as e:
-        return f"Error de conexión: {e}"
+        return f"Error de conexión: {e}. ¿Está LM Studio encendido?"
 
-# --- PROTOCOLO DE LOS 6 SOMBREROS (PROMPTS REFINADOS) ---
+# --- 2. PROTOCOLO DE LOS 6 SOMBREROS (VERTEX FRAMEWORK) ---
 SOMBREROS = {
     "BLANCO": {
         "rol": "Analista de requisitos. Hechos y datos puros.",
@@ -31,7 +32,7 @@ SOMBREROS = {
     },
     "NEGRO": {
         "rol": "Auditor de Seguridad (Nemesis IA Style).",
-        "instruccion": "Identifica riesgos lógicos o de seguridad. Advierte sobre variables no definidas."
+        "instruccion": "Identifica riesgos lógicos. Advierte sobre variables no definidas o fugas de datos."
     },
     "VERDE": {
         "rol": "Senior Full Stack Developer.",
@@ -39,11 +40,11 @@ SOMBREROS = {
     },
     "ROJO": {
         "rol": "QA Tester implacable.",
-        "instruccion": "Valida el código. Si detectas variables fantasma o errores, responde RECHAZADO."
+        "instruccion": "Valida el código. Si hay errores lógicos, responde RECHAZADO y explica por qué."
     },
     "AMARILLO": {
         "rol": "Ingeniero de Optimización.",
-        "instruccion": "Refactoriza para legibilidad, eficiencia y limpieza según PEP 8."
+        "instruccion": "Refactoriza para legibilidad y limpieza según PEP 8."
     },
     "AZUL": {
         "rol": "CTO de Vertex Coders.",
@@ -51,15 +52,16 @@ SOMBREROS = {
     }
 }
 
+# --- 3. ORQUESTADOR DE LA COLMENA ---
 class AgenteMaestro:
     def __init__(self, max_ciclos=2):
         self.max_ciclos = max_ciclos
         self.estado = {}
 
     def guardar_en_disco(self, codigo, nombre="solucion_vertex.py"):
-        """Materializa el pensamiento de la IA en un archivo real."""
+        """Materializa el código aprobado en un archivo ejecutable."""
         try:
-            # Limpiamos el código de posibles bloques de Markdown (```python ... ```)
+            # Limpieza profesional de bloques Markdown
             if "```python" in codigo:
                 codigo = codigo.split("```python")[1].split("```")[0].strip()
             elif "```" in codigo:
@@ -78,39 +80,43 @@ class AgenteMaestro:
         for ciclo in range(1, self.max_ciclos + 1):
             print(f"--- 🔄 CICLO DE REFINAMIENTO {ciclo} ---")
             
-            # Flujo de trabajo orquestado paso a paso
+            # 1. Análisis de Hechos
             self.estado['req'] = pensar(SOMBREROS["BLANCO"], contexto_problema)
             print("⚪ Sombrero Blanco: OK.")
             
+            # 2. Auditoría de Riesgos (Protocolo Némesis)
             self.estado['riesgos'] = pensar(SOMBREROS["NEGRO"], self.estado['req'])
-            print("⚫ Sombrero Negro: Riesgos detectados.")
+            print("⚫ Sombrero Negro: Riesgos evaluados.")
             
+            # 3. Desarrollo
             ctx_dev = f"Reqs: {self.estado['req']}\nRiesgos: {self.estado['riesgos']}"
             self.estado['codigo'] = pensar(SOMBREROS["VERDE"], ctx_dev)
             print("🟢 Sombrero Verde: Código generado.")
             
+            # 4. Control de Calidad
             self.estado['qa'] = pensar(SOMBREROS["ROJO"], self.estado['codigo'])
-            print(f"🔴 Sombrero Rojo: {self.estado['qa'][:30]}...")
+            print(f"🔴 Sombrero Rojo: {self.estado['qa'][:40]}...")
             
+            # 5. Optimización PEP 8
             self.estado['final'] = pensar(SOMBREROS["AMARILLO"], self.estado['codigo'])
-            print("🟡 Sombrero Amarillo: Optimizado.")
+            print("🟡 Sombrero Amarillo: Refactorizado.")
             
+            # 6. Decisión Ejecutiva
             decision = pensar(SOMBREROS["AZUL"], self.estado['final'])
             print(f"🔵 Sombrero Azul (CTO): {decision[:50]}")
             
             if "APROBADO_FIN" in decision.upper():
                 print("\n✨ ÉXITO: El CTO ha dado luz verde.")
-                reporte_disco = self.guardar_en_disco(self.estado['final'])
-                print(reporte_disco)
-                return self.estado['final']
+                return self.guardar_en_disco(self.estado['final'])
             
-            contexto_problema = f"Error previo: {decision}. Refactorizar código: {self.estado['final']}"
+            # Retroalimentación para el siguiente ciclo si falla
+            contexto_problema = f"Tarea: {tarea}\nError detectado: {decision}\nCódigo a mejorar: {self.estado['final']}"
 
-        return "⚠️ Se alcanzó el límite de ciclos sin aprobación final."
+        return "⚠️ Se alcanzó el límite de ciclos sin aprobación. Revisa los logs de seguridad."
 
 if __name__ == "__main__":
     colmena = AgenteMaestro(max_ciclos=2)
-    meta = "Crear un sistema de detección de anomalías usando IsolationForest para transacciones financieras."
+    meta = "Crear un script de Python que monitoree el puerto 8080 y bloquee IPs con más de 10 intentos fallidos."
     
-    codigo_aprobado = colmena.ejecutar(meta)
-    print("\n🏆 RESULTADO FINAL EN TERMINAL:\n" + "="*40 + "\n" + codigo_aprobado)
+    reporte = colmena.ejecutar(meta)
+    print(f"\n🏆 RESULTADO:\n{reporte}")
